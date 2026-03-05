@@ -22,6 +22,14 @@
   - [Q: What Is the Difference Between DataAnnotations and FluentValidation?](#q-what-is-the-difference-between-dataannotations-and-fluentvalidation)
 - [Logging](#logging)
   - [Q: How to Configure Logging in ASP.NET Core?](#q-how-to-configure-logging-in-aspnet-core)
+- [.NET Platform](#net-platform)
+  - [Q: What Is the Difference Between .NET Framework, .NET Core, and .NET 5+?](#q-what-is-the-difference-between-net-framework-net-core-and-net-5)
+  - [Q: What Is the Common Language Runtime (CLR)?](#q-what-is-the-common-language-runtime-clr)
+  - [Q: How Does Garbage Collection Work in .NET?](#q-how-does-garbage-collection-work-in-net)
+  - [Q: What Are Assemblies in .NET?](#q-what-are-assemblies-in-net)
+- [Generic Host & Application Model](#generic-host--application-model)
+  - [Q: What Is the Generic Host in .NET and How Does It Differ from the Web Host?](#q-what-is-the-generic-host-in-net-and-how-does-it-differ-from-the-web-host)
+  - [Q: What Is Middleware vs Filters vs Attributes in the .NET Pipeline?](#q-what-is-middleware-vs-filters-vs-attributes-in-the-net-pipeline)
 
 ---
 
@@ -1454,3 +1462,696 @@ info: UserService[0]
 | Customize per category    | Set `LogLevel` in `appsettings.json`         |
 | Use structured logging    | Use `{placeholder}` format                   |
 | Add file/cloud providers  | Use Serilog, NLog, Seq, Application Insights |
+
+---
+
+## .NET Platform
+
+### Q: What Is the Difference Between .NET Framework, .NET Core, and .NET 5+?
+
+**A:**
+
+Microsoft has shipped multiple .NET runtimes over the years. Understanding the differences is essential for choosing the right platform and planning migrations.
+
+---
+
+#### .NET Framework
+
+- The **original** .NET implementation, released in 2002.
+- **Windows-only** — tightly coupled to Windows APIs (WinForms, WPF, WCF).
+- Ships as a **system-wide** install on Windows.
+- Mature ecosystem with a very large library surface area.
+- No longer receiving new features — only security and reliability fixes.
+
+---
+
+#### .NET Core
+
+- A **cross-platform**, **open-source** rewrite of .NET.
+- Runs on **Windows, Linux, and macOS**.
+- **Modular** — ships via NuGet packages and self-contained deployments.
+- **High-performance** — Kestrel web server, `Span<T>`, hardware intrinsics.
+- Side-by-side versioning — multiple versions can coexist on one machine.
+
+---
+
+#### .NET 5+ (Unified Platform)
+
+- Starting with **.NET 5** (2020), Microsoft unified .NET Core and .NET Framework into a **single platform**.
+- Continues the cross-platform, open-source lineage of .NET Core.
+- .NET 6, 7, 8, 9+ continue this line with **LTS** (Long-Term Support) and **STS** (Standard-Term Support) releases.
+- Includes workloads for web, desktop, mobile (MAUI), cloud, IoT, and AI.
+
+---
+
+#### Key Migration Considerations
+
+- New projects should **always** target .NET 6 or later.
+- Migrate from .NET Framework using the [.NET Upgrade Assistant](https://learn.microsoft.com/en-us/dotnet/core/porting/).
+- Some APIs (WCF server-side, AppDomains, Remoting) have **no direct equivalent** in .NET 5+.
+- Use the [.NET Portability Analyzer](https://learn.microsoft.com/en-us/dotnet/standard/analyzers/portability-analyzer) to assess compatibility.
+
+---
+
+#### Summary Table
+
+| Feature              | .NET Framework       | .NET Core             | .NET 5+                     |
+| -------------------- | -------------------- | --------------------- | --------------------------- |
+| Cross-platform       | No (Windows only)    | Yes                   | Yes                         |
+| Open source          | Partially            | Yes                   | Yes                         |
+| Performance          | Good                 | High                  | Very High                   |
+| Deployment           | System-wide          | Side-by-side          | Side-by-side                |
+| Current status       | Maintenance mode     | Superseded by .NET 5+ | Active development          |
+| Package management   | GAC, NuGet           | NuGet                 | NuGet                       |
+| Supported workloads  | Web, Desktop (Win)   | Web, Console, Worker  | Web, Desktop, Mobile, Cloud |
+
+---
+
+#### Key Takeaway
+
+✅ Always start new projects on the latest LTS release of .NET (currently .NET 8). Only remain on .NET Framework if you have dependencies that cannot be ported.
+
+---
+
+### Q: What Is the Common Language Runtime (CLR)?
+
+**A:**
+
+The **Common Language Runtime (CLR)** is the **managed execution environment** at the heart of .NET. It provides services that make it possible to write, compile, and run code in any .NET language.
+
+---
+
+#### Core Responsibilities
+
+| Responsibility           | Description                                                         |
+| ------------------------ | ------------------------------------------------------------------- |
+| JIT Compilation          | Converts CIL/MSIL bytecode to native machine code at runtime       |
+| Garbage Collection       | Automatically reclaims memory from unreferenced objects             |
+| Type Safety              | Enforces type rules at load time and runtime                        |
+| Exception Handling       | Provides structured exception handling across languages             |
+| Thread Management        | Manages thread pool and synchronization primitives                  |
+| Assembly Loading         | Loads, verifies, and resolves assemblies and their dependencies     |
+| Security                 | Enforces code access security and verification                     |
+
+---
+
+#### How Code Executes in the CLR
+
+1. **Source code** (C#, F#, VB.NET) is compiled by the language compiler into **CIL (Common Intermediate Language)**, also known as MSIL.
+2. The CIL is stored in an **assembly** (`.dll` or `.exe`).
+3. At runtime, the **JIT compiler** translates CIL into **native machine code** specific to the target CPU.
+4. The CLR executes the native code, managing memory, exceptions, and type safety.
+
+```
+C# Source → [Roslyn Compiler] → CIL/MSIL (.dll) → [JIT Compiler] → Native Code → Execution
+```
+
+---
+
+#### Managed vs Unmanaged Code
+
+```csharp
+// Managed code — runs under the CLR with GC, type safety, etc.
+public class ManagedExample
+{
+    public void Run()
+    {
+        var list = new List<string> { "Hello", "World" };
+        Console.WriteLine(string.Join(" ", list));
+        // Memory is automatically managed by the GC
+    }
+}
+
+// Unmanaged interop — calling native code via P/Invoke
+using System.Runtime.InteropServices;
+
+public class UnmanagedExample
+{
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
+
+    public void ShowMessage()
+    {
+        // This calls unmanaged Win32 API — memory is NOT managed by the CLR
+        MessageBox(IntPtr.Zero, "Hello from native!", "P/Invoke", 0);
+    }
+}
+```
+
+---
+
+#### .NET Core / .NET 5+ CLR (CoreCLR)
+
+- The modern .NET runtime uses **CoreCLR**, a lightweight, cross-platform version of the CLR.
+- Supports **tiered compilation** — methods start with quick JIT and are re-compiled with optimizations when hot.
+- Supports **ReadyToRun (R2R)** and **Native AOT** for ahead-of-time compilation.
+
+---
+
+#### Key Takeaway
+
+✅ The CLR abstracts away hardware and OS details, providing a portable, safe, and performant execution environment. Understanding JIT compilation and managed execution helps diagnose performance and interop issues.
+
+---
+
+### Q: How Does Garbage Collection Work in .NET?
+
+**A:**
+
+The .NET **Garbage Collector (GC)** automatically manages memory by reclaiming objects that are no longer reachable. It uses a **generational**, **mark-and-sweep** algorithm optimized for short-lived objects.
+
+---
+
+#### Generational Model
+
+The GC divides the managed heap into three generations:
+
+| Generation | Contains                        | Collection Frequency |
+| ---------- | ------------------------------- | -------------------- |
+| Gen 0      | Newly allocated objects         | Very frequent        |
+| Gen 1      | Short-lived objects (survived 1 GC) | Moderate         |
+| Gen 2      | Long-lived objects              | Infrequent (full GC) |
+
+- Objects that **survive** a collection are **promoted** to the next generation.
+- Most objects die young — Gen 0 collections are fast and frequent.
+
+---
+
+#### Large Object Heap (LOH)
+
+- Objects **≥ 85,000 bytes** are allocated on the **Large Object Heap**.
+- The LOH is collected with **Gen 2** but is **not compacted** by default.
+- Starting in .NET Core 3.0+, you can enable LOH compaction:
+
+```csharp
+GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+GC.Collect();
+```
+
+---
+
+#### GC Roots and Reachability
+
+The GC determines which objects are alive by tracing from **GC roots**:
+
+- **Stack references** (local variables, method parameters)
+- **Static fields**
+- **GC handles** (pinned objects, weak references)
+- **Finalizer queue**
+
+Any object **not reachable** from a root is eligible for collection.
+
+---
+
+#### `IDisposable` and the Dispose Pattern
+
+The GC handles **memory**, but **unmanaged resources** (file handles, database connections, sockets) must be released explicitly.
+
+```csharp
+public class ResourceHolder : IDisposable
+{
+    private bool _disposed = false;
+    private FileStream? _stream;
+
+    public ResourceHolder(string path)
+    {
+        _stream = new FileStream(path, FileMode.Open);
+    }
+
+    public void DoWork()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        // Use _stream
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                // Release managed resources
+                _stream?.Dispose();
+            }
+
+            // Release unmanaged resources (if any)
+            _disposed = true;
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    ~ResourceHolder()
+    {
+        Dispose(disposing: false);
+    }
+}
+```
+
+Usage:
+
+```csharp
+// Preferred: using statement ensures Dispose is called
+using var holder = new ResourceHolder("data.txt");
+holder.DoWork();
+```
+
+---
+
+#### Finalizers and Their Impact
+
+- Finalizers (`~ClassName()`) run **before** the GC reclaims the object.
+- Objects with finalizers survive **at least one extra GC cycle** — they are placed on the **finalization queue**, then the **f-reachable queue**, and only collected on the next pass.
+- **Avoid finalizers** unless you are wrapping raw unmanaged resources with no `SafeHandle` equivalent.
+
+---
+
+#### `GC.Collect()` — When (Not) to Use It
+
+```csharp
+// Forces a garbage collection — almost never needed
+GC.Collect();
+GC.WaitForPendingFinalizers();
+```
+
+- The GC is **self-tuning** — forcing collection disrupts its heuristics.
+- **Acceptable uses**: benchmarking, after releasing a large batch of objects, or in memory-constrained environments.
+- **Avoid** in production hot paths — let the GC decide when to collect.
+
+---
+
+#### Summary Table
+
+| Concept          | Description                                                  |
+| ---------------- | ------------------------------------------------------------ |
+| Gen 0 / 1 / 2   | Generational collection — younger objects collected first    |
+| LOH              | Large objects (≥ 85 KB) — collected with Gen 2               |
+| GC Roots         | Stack, statics, handles — determine reachability             |
+| `IDisposable`    | Deterministic cleanup of unmanaged resources                 |
+| Finalizers       | Last-resort cleanup — delays collection by one cycle         |
+| `GC.Collect()`   | Manual trigger — avoid unless benchmarking or special cases  |
+
+---
+
+#### Key Takeaway
+
+✅ Rely on the GC for memory management, but always implement `IDisposable` for unmanaged resources. Use `using` statements to ensure timely cleanup and avoid finalizers when possible.
+
+---
+
+### Q: What Are Assemblies in .NET?
+
+**A:**
+
+An **assembly** is the fundamental unit of **deployment, versioning, and reuse** in .NET. Every .NET application is composed of one or more assemblies.
+
+---
+
+#### Assembly Types
+
+| Type | Extension | Description                                  |
+| ---- | --------- | -------------------------------------------- |
+| EXE  | `.exe`    | Executable — contains an entry point         |
+| DLL  | `.dll`    | Library — consumed by other assemblies       |
+
+---
+
+#### Assembly Contents
+
+An assembly contains:
+
+- **CIL code** — compiled intermediate language instructions.
+- **Metadata** — type definitions, member signatures, references.
+- **Manifest** — assembly identity (name, version, culture, public key token), list of referenced assemblies, and file list.
+- **Resources** — embedded files, strings, images.
+
+```csharp
+// Inspect assembly metadata at runtime
+using System.Reflection;
+
+var assembly = Assembly.GetExecutingAssembly();
+Console.WriteLine($"Name: {assembly.GetName().Name}");
+Console.WriteLine($"Version: {assembly.GetName().Version}");
+Console.WriteLine($"Location: {assembly.Location}");
+
+// List all types in the assembly
+foreach (var type in assembly.GetTypes())
+{
+    Console.WriteLine($"  Type: {type.FullName}");
+}
+```
+
+---
+
+#### Strong-Named Assemblies
+
+- A **strong name** consists of the assembly's **name, version, culture, and public key token**.
+- Created by signing with a cryptographic key pair.
+- Guarantees **uniqueness** and **integrity**.
+
+```xml
+<!-- In .csproj -->
+<PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>MyKey.snk</AssemblyOriginatorKeyFile>
+</PropertyGroup>
+```
+
+---
+
+#### Assembly Versioning
+
+```xml
+<!-- In .csproj -->
+<PropertyGroup>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0-beta.1</InformationalVersion>
+</PropertyGroup>
+```
+
+| Property                 | Purpose                                              |
+| ------------------------ | ---------------------------------------------------- |
+| `AssemblyVersion`        | Used by the runtime for binding                      |
+| `FileVersion`            | Shown in file properties (Windows Explorer)          |
+| `InformationalVersion`   | Human-readable version (supports SemVer pre-release) |
+
+---
+
+#### Private vs Shared Assemblies
+
+| Aspect       | Private Assembly                     | Shared Assembly (GAC)                    |
+| ------------ | ------------------------------------ | ---------------------------------------- |
+| Location     | Application's own directory          | Global Assembly Cache                    |
+| Scope        | Used by one application              | Shared across multiple applications      |
+| Strong name  | Not required                         | Required                                 |
+| Versioning   | Simple copy deployment               | Side-by-side versioning in the GAC       |
+
+> Note: The **GAC** (Global Assembly Cache) is a **.NET Framework** concept. In .NET Core / .NET 5+, assemblies are resolved via NuGet packages and runtime stores instead.
+
+---
+
+#### .NET Core / .NET 5+ Assembly Loading
+
+- Uses **`AssemblyLoadContext`** for isolation and versioning.
+- Supports loading assemblies into **separate contexts** for plugin scenarios.
+- Default context loads from the application's `deps.json` and runtime package store.
+
+```csharp
+// Load an assembly into a custom context (plugin pattern)
+var context = new AssemblyLoadContext("PluginContext", isCollectible: true);
+var pluginAssembly = context.LoadFromAssemblyPath("/path/to/plugin.dll");
+
+// Unload when done
+context.Unload();
+```
+
+---
+
+#### Summary Table
+
+| Concept              | Description                                                  |
+| -------------------- | ------------------------------------------------------------ |
+| Assembly             | Unit of deployment — `.dll` or `.exe`                        |
+| Manifest             | Identity, version, references, file list                     |
+| Strong naming        | Cryptographic identity — name + version + culture + key      |
+| GAC                  | .NET Framework shared assembly store                         |
+| AssemblyLoadContext   | .NET Core/5+ mechanism for assembly isolation and unloading  |
+
+---
+
+#### Key Takeaway
+
+✅ Assemblies are the building blocks of .NET applications. In modern .NET, prefer NuGet packages and `AssemblyLoadContext` over the GAC for sharing and isolating code.
+
+---
+
+## Generic Host & Application Model
+
+### Q: What Is the Generic Host in .NET and How Does It Differ from the Web Host?
+
+**A:**
+
+The **Generic Host** (`IHostBuilder` / `Host.CreateDefaultBuilder`) is the foundation for building any .NET application — not just web apps. The **Web Host** (`WebHost`) was the original ASP.NET Core hosting model but has been superseded.
+
+---
+
+#### Generic Host (`IHostBuilder`)
+
+- Provides a **unified programming model** for all application types.
+- Configures **DI**, **configuration**, **logging**, and **hosted services**.
+- Used for **console apps, worker services, gRPC, and web applications**.
+- `WebApplication.CreateBuilder()` (introduced in .NET 6) is built **on top of** the Generic Host.
+
+```csharp
+// Generic Host for a console / worker application
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+
+var builder = Host.CreateDefaultBuilder(args);
+
+builder.ConfigureServices(services =>
+{
+    services.AddHostedService<MyWorkerService>();
+    services.AddSingleton<IDataProcessor, DataProcessor>();
+});
+
+var host = builder.Build();
+await host.RunAsync();
+```
+
+---
+
+#### Web Host vs Generic Host
+
+| Feature                    | Web Host (`WebHost`)          | Generic Host (`Host`)               |
+| -------------------------- | ----------------------------- | ----------------------------------- |
+| Introduced in              | ASP.NET Core 1.0              | ASP.NET Core 2.1                    |
+| HTTP pipeline              | Built-in                      | Added via `ConfigureWebHostDefaults` |
+| Non-HTTP scenarios         | Not designed for              | First-class support                 |
+| Current status             | Legacy (still supported)      | Recommended                         |
+| .NET 6+ minimal API        | Not used                      | `WebApplication.CreateBuilder()`    |
+
+---
+
+#### WebApplicationBuilder (Recommended for Web Apps)
+
+```csharp
+// Modern approach — uses Generic Host internally
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+builder.Services.AddHostedService<BackgroundCleanupService>();
+
+var app = builder.Build();
+
+app.MapControllers();
+await app.RunAsync();
+```
+
+---
+
+#### Non-HTTP Scenario: Worker Service
+
+```csharp
+public class MyWorkerService : BackgroundService
+{
+    private readonly ILogger<MyWorkerService> _logger;
+    private readonly IDataProcessor _processor;
+
+    public MyWorkerService(ILogger<MyWorkerService> logger, IDataProcessor processor)
+    {
+        _logger = logger;
+        _processor = processor;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("Processing at {Time}", DateTimeOffset.Now);
+            await _processor.ProcessAsync(stoppingToken);
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+        }
+    }
+}
+```
+
+---
+
+#### Summary Table
+
+| Scenario              | Recommended Host                                       |
+| --------------------- | ------------------------------------------------------ |
+| ASP.NET Core web app  | `WebApplication.CreateBuilder()` (Generic Host inside) |
+| Worker / background   | `Host.CreateDefaultBuilder()`                          |
+| gRPC service          | `WebApplication.CreateBuilder()` or Generic Host       |
+| Console utility       | `Host.CreateDefaultBuilder()`                          |
+| Legacy ASP.NET Core   | `WebHost.CreateDefaultBuilder()` (avoid for new apps)  |
+
+---
+
+#### Key Takeaway
+
+✅ Use the Generic Host for all new .NET applications. For web apps, `WebApplication.CreateBuilder()` provides a streamlined API built on top of the Generic Host.
+
+---
+
+### Q: What Is Middleware vs Filters vs Attributes in the .NET Pipeline?
+
+**A:**
+
+ASP.NET Core has **three distinct mechanisms** for intercepting and processing requests. Each operates at a different level of the pipeline and is suited for different scenarios.
+
+---
+
+#### Middleware
+
+- Operates at the **HTTP request pipeline** level.
+- Processes **every request** (or a subset matched by `Map`/`When`).
+- Cross-cutting concerns: authentication, CORS, logging, exception handling, compression.
+- Executed in the **order registered** in `Program.cs`.
+
+```csharp
+// Custom middleware
+public class RequestTimingMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly ILogger<RequestTimingMiddleware> _logger;
+
+    public RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTimingMiddleware> logger)
+    {
+        _next = next;
+        _logger = logger;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        await _next(context); // Call the next middleware
+
+        stopwatch.Stop();
+        _logger.LogInformation("Request {Method} {Path} took {Elapsed}ms",
+            context.Request.Method, context.Request.Path, stopwatch.ElapsedMilliseconds);
+    }
+}
+
+// Register in Program.cs
+app.UseMiddleware<RequestTimingMiddleware>();
+```
+
+---
+
+#### Filters (MVC / Controller Level)
+
+- Operate **within the MVC pipeline**, after routing has selected a controller and action.
+- Apply to **controllers and actions** — not raw HTTP endpoints.
+- Types: Authorization, Resource, Action, Exception, Result filters.
+- Can be applied globally, per-controller, or per-action.
+
+```csharp
+// Custom action filter
+public class ValidateModelFilter : IActionFilter
+{
+    public void OnActionExecuting(ActionExecutingContext context)
+    {
+        if (!context.ModelState.IsValid)
+        {
+            context.Result = new BadRequestObjectResult(context.ModelState);
+        }
+    }
+
+    public void OnActionExecuted(ActionExecutedContext context) { }
+}
+
+// Apply globally
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ValidateModelFilter>();
+});
+
+// Or apply per-action
+[ServiceFilter(typeof(ValidateModelFilter))]
+public IActionResult Create(MyModel model) => Ok();
+```
+
+---
+
+#### Attributes (Metadata / Decoration)
+
+- **Declarative metadata** attached to classes, methods, properties, or parameters.
+- Do **not execute logic** on their own — they are **read** by the framework or filters.
+- Common examples: `[Authorize]`, `[Route]`, `[HttpGet]`, `[Required]`, `[FromBody]`.
+
+```csharp
+// Attributes provide metadata that the framework uses
+[ApiController]
+[Route("api/[controller]")]
+[Authorize(Roles = "Admin")]
+public class ProductsController : ControllerBase
+{
+    [HttpGet("{id}")]
+    [ProducesResponseType(typeof(Product), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult GetById(int id) => Ok();
+}
+```
+
+> Note: Some attributes (like `[Authorize]`) trigger **filters** behind the scenes. The attribute itself is metadata; the associated filter performs the actual logic.
+
+---
+
+#### Execution Order
+
+```
+HTTP Request
+  → Middleware Pipeline (in order of registration)
+    → Routing Middleware (selects endpoint)
+      → Authorization Filters
+        → Resource Filters
+          → Model Binding
+            → Action Filters (before)
+              → ACTION METHOD
+            → Action Filters (after)
+          → Result Filters (before)
+            → RESULT EXECUTION
+          → Result Filters (after)
+        → Resource Filters (after)
+      → Exception Filters (if error)
+    → Routing Middleware (response)
+  → Middleware Pipeline (response, reverse order)
+HTTP Response
+```
+
+---
+
+#### When to Use Each
+
+| Mechanism   | Scope               | Use Case                                                |
+| ----------- | ------------------- | ------------------------------------------------------- |
+| Middleware   | All requests         | Logging, CORS, authentication, compression, rate limiting |
+| Filters      | MVC actions          | Validation, authorization, caching, exception handling   |
+| Attributes   | Declarative metadata | Routing, HTTP verbs, authorization rules, API docs       |
+
+---
+
+#### Summary Table
+
+| Feature           | Middleware                   | Filters                         | Attributes                  |
+| ----------------- | ---------------------------- | ------------------------------- | --------------------------- |
+| Pipeline level    | HTTP request pipeline        | MVC pipeline                    | Metadata (no pipeline)      |
+| Applies to        | All requests                 | Controllers / actions           | Classes, methods, params    |
+| Execution control | `RequestDelegate` chain      | `IActionFilter`, `IAuthFilter`  | Read by framework / filters |
+| Registration      | `app.UseMiddleware<T>()`     | `options.Filters.Add<T>()`      | `[AttributeName]`           |
+| Order control     | Registration order           | Order property + scope          | N/A                         |
+
+---
+
+#### Key Takeaway
+
+✅ Use **middleware** for cross-cutting concerns that apply to all requests. Use **filters** for MVC-specific logic on controllers and actions. Use **attributes** to declare metadata that the framework and filters can act upon.
