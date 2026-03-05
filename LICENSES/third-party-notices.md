@@ -44,3 +44,23 @@ The following external websites are referenced in [`resources/external-links.md`
 ## 4. Original Content
 
 Content not derived from the above sources has been authored originally for this repository and is available under the repository's own license terms.
+
+New questions added in the following topic areas were written originally, inspired by commonly asked interview topics across the referenced external resources. No verbatim content was copied from any external source.
+
+**C# Language** (added to `dotnet/csharp/questions.md`):
+- Delegates & Events (delegate vs event, Func/Action/Predicate)
+- Tuples & Deconstruction
+- Dynamic & Reflection (`dynamic` vs `var` vs `object`)
+- Pattern Matching (type, property, positional, relational, list patterns)
+
+**.NET Fundamentals** (added to `dotnet/dotnet-fundamentals/questions.md`):
+- .NET Platform (.NET Framework vs .NET Core vs .NET 5+, CLR, garbage collection, assemblies)
+- Generic Host & Application Model (Generic Host vs Web Host, middleware vs filters vs attributes)
+
+**ASP.NET Core** (added to `dotnet/aspnet-core/questions.md`):
+- Model Binding & Validation (model binding, action results, content negotiation)
+- Error Handling (global exception handling, ProblemDetails)
+- Health Checks & Monitoring (IHealthCheck, liveness/readiness probes)
+- CORS (configuration, named policies)
+- Real-Time Communication (SignalR, gRPC)
+- Service Registration & Startup (AddMvc vs AddControllers, Tag Helpers)

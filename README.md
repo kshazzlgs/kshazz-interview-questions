@@ -16,9 +16,9 @@ A curated collection of technical interview questions organized by technology st
 
 | Topic | Link | Description |
 |-------|------|-------------|
-| C# Language | [dotnet/csharp/questions.md](dotnet/csharp/questions.md) | Type system, OOP, LINQ, async/threading, modern C# features |
-| .NET Fundamentals | [dotnet/dotnet-fundamentals/questions.md](dotnet/dotnet-fundamentals/questions.md) | Dependency injection, configuration, hosting, background services, logging |
-| ASP.NET Core | [dotnet/aspnet-core/questions.md](dotnet/aspnet-core/questions.md) | Routing, middleware, security, minimal APIs, caching, API versioning, EF Core, architecture, testing |
+| C# Language | [dotnet/csharp/questions.md](dotnet/csharp/questions.md) | Type system, OOP, LINQ, async/threading, delegates & events, tuples, dynamic keyword, pattern matching, modern C# features |
+| .NET Fundamentals | [dotnet/dotnet-fundamentals/questions.md](dotnet/dotnet-fundamentals/questions.md) | .NET platform comparison, CLR, garbage collection, assemblies, dependency injection, configuration, hosting, Generic Host, logging |
+| ASP.NET Core | [dotnet/aspnet-core/questions.md](dotnet/aspnet-core/questions.md) | Routing, middleware, security, minimal APIs, caching, API versioning, EF Core, architecture, model binding, error handling, health checks, CORS, SignalR, gRPC, testing |
 
 See the [dotnet/ README](dotnet/README.md) for topic-by-topic quick reference.
 
