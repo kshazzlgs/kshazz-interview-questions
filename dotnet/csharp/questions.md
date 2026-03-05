@@ -12,6 +12,10 @@
 - [Language Fundamentals](#language-fundamentals)
 - [Memory & Performance](#memory-performance)
 - [Reflection & Type Inspection](#reflection-type-inspection)
+- [Delegates & Events](#delegates-events)
+- [Tuples & Deconstruction](#tuples-deconstruction)
+- [Dynamic & Reflection](#dynamic-reflection)
+- [Pattern Matching](#pattern-matching)
 
 ---
 
@@ -5174,6 +5178,689 @@ Console.WriteLine(result); // true
 | `is`     | Type check                        | `if (obj is MyClass)`      |
 | `as`     | Safe cast (returns null if fails) | `var x = obj as MyClass`   |
 | `typeof` | Get `System.Type`                 | `Type t = typeof(MyClass)` |
+
+---
+
+---
+
+## Delegates & Events
+
+### Q: What Is the Difference Between a Delegate and an Event in C#?
+
+**A:**
+
+A **delegate** is a type-safe **function pointer** — it holds a reference to one or more methods with a matching signature. An **event** is a **restricted wrapper** around a delegate that enforces an encapsulation boundary: outside the declaring class, consumers can only **subscribe** (`+=`) or **unsubscribe** (`-=`), but they cannot **invoke** or **replace** the delegate directly.
+
+---
+
+## 🔹 Delegate
+
+### Definition:
+
+* A **type** that defines a method signature and can hold references to one or more matching methods.
+* Can be **invoked**, **reassigned**, or **combined** freely by any code that has access to it.
+
+### Example:
+
+```csharp
+public delegate void Notify(string message);
+
+public class Broadcaster
+{
+    public Notify OnMessage;
+}
+
+var broadcaster = new Broadcaster();
+
+// Any external code can invoke or replace the delegate
+broadcaster.OnMessage = msg => Console.WriteLine($"First: {msg}");
+broadcaster.OnMessage += msg => Console.WriteLine($"Second: {msg}");
+
+// External code can invoke directly
+broadcaster.OnMessage("Hello");
+
+// External code can replace ALL subscribers
+broadcaster.OnMessage = null;
+```
+
+---
+
+## 🔹 Event
+
+### Definition:
+
+* An **event** wraps a delegate and restricts external access to `+=` and `-=` only.
+* Only the **declaring class** can invoke the event or set it to `null`.
+
+### Example:
+
+```csharp
+public delegate void Notify(string message);
+
+public class Broadcaster
+{
+    public event Notify OnMessage;
+
+    public void Send(string message)
+    {
+        OnMessage?.Invoke(message); // Only the class itself can invoke
+    }
+}
+
+var broadcaster = new Broadcaster();
+
+// External code can only subscribe and unsubscribe
+broadcaster.OnMessage += msg => Console.WriteLine($"Received: {msg}");
+
+// broadcaster.OnMessage("Hello");   // ❌ Compile error — cannot invoke from outside
+// broadcaster.OnMessage = null;     // ❌ Compile error — cannot reassign from outside
+
+broadcaster.Send("Hello"); // ✅ Invoked internally
+```
+
+---
+
+## 🔹 Custom Event Accessors
+
+You can define custom `add` and `remove` accessors for events, similar to property getters and setters:
+
+```csharp
+public class Broadcaster
+{
+    private Notify _onMessage;
+
+    public event Notify OnMessage
+    {
+        add    { _onMessage += value; Console.WriteLine("Subscriber added"); }
+        remove { _onMessage -= value; Console.WriteLine("Subscriber removed"); }
+    }
+
+    public void Send(string message) => _onMessage?.Invoke(message);
+}
+```
+
+---
+
+## 🔸 Summary Table
+
+| Feature                  | Delegate                          | Event                                  |
+| ------------------------ | --------------------------------- | -------------------------------------- |
+| Type                     | Type-safe function pointer        | Restricted delegate wrapper            |
+| External invocation      | ✅ Allowed                         | ❌ Only the declaring class can invoke  |
+| External reassignment    | ✅ Can set to `null` or `=`        | ❌ Only `+=` and `-=` from outside      |
+| Multicast support        | ✅ Yes                             | ✅ Yes                                  |
+| Encapsulation            | ❌ No restrictions                 | ✅ Enforced                             |
+| Common use case          | Callbacks, strategy pattern       | Publisher/subscriber, UI notifications |
+
+---
+
+## ✅ When to Use
+
+* Use a **delegate** when you need a simple **callback** or want to pass a method reference freely.
+* Use an **event** when implementing the **publisher/subscriber pattern** and you want to prevent external code from invoking or replacing the handler list.
+
+---
+
+---
+
+### Q: What Are `Func`, `Action`, and `Predicate` Delegates in C#?
+
+**A:**
+
+C# provides **built-in generic delegate types** so you rarely need to declare custom delegates. The three most common are `Func<>`, `Action<>`, and `Predicate<>`.
+
+---
+
+## 🔹 `Func<T, TResult>`
+
+### Definition:
+
+* A delegate that takes **zero or more input parameters** and **returns a value**.
+* The **last** type parameter is always the **return type**.
+
+### Example:
+
+```csharp
+Func<int, int, int> add = (a, b) => a + b;
+Console.WriteLine(add(3, 4)); // Output: 7
+
+Func<string, int> getLength = s => s.Length;
+Console.WriteLine(getLength("Hello")); // Output: 5
+
+// No input parameters
+Func<DateTime> now = () => DateTime.Now;
+Console.WriteLine(now());
+```
+
+---
+
+## 🔹 `Action<T>`
+
+### Definition:
+
+* A delegate that takes **zero or more input parameters** and returns **`void`**.
+
+### Example:
+
+```csharp
+Action<string> greet = name => Console.WriteLine($"Hello, {name}!");
+greet("Alice"); // Output: Hello, Alice!
+
+Action<int, int> printSum = (a, b) => Console.WriteLine(a + b);
+printSum(3, 4); // Output: 7
+
+// No parameters
+Action logTime = () => Console.WriteLine(DateTime.Now);
+logTime();
+```
+
+---
+
+## 🔹 `Predicate<T>`
+
+### Definition:
+
+* A delegate that takes a **single input parameter** and returns **`bool`**.
+* Functionally equivalent to `Func<T, bool>`, but more **semantically clear** for filtering.
+
+### Example:
+
+```csharp
+Predicate<int> isEven = n => n % 2 == 0;
+Console.WriteLine(isEven(4)); // Output: True
+Console.WriteLine(isEven(7)); // Output: False
+
+var numbers = new List<int> { 1, 2, 3, 4, 5, 6 };
+List<int> evens = numbers.FindAll(isEven);
+// evens: [2, 4, 6]
+```
+
+---
+
+## 🔸 Summary Table
+
+| Delegate         | Parameters         | Returns     | Common Use Case                     |
+| ---------------- | ------------------ | ----------- | ----------------------------------- |
+| `Func<T, ...>`   | 0–16 input params  | `TResult`   | Transformations, computations, LINQ |
+| `Action<T, ...>` | 0–16 input params  | `void`      | Side effects, logging, printing     |
+| `Predicate<T>`   | Exactly 1 param    | `bool`      | Filtering, validation               |
+
+---
+
+## ✅ When to Use
+
+* Use **`Func`** when you need a delegate that **returns a value** (e.g., `Select()`, `Where()` in LINQ).
+* Use **`Action`** when you need a delegate that performs a **side effect** without returning anything.
+* Use **`Predicate`** when filtering items in a collection or expressing a **boolean condition** (e.g., `List<T>.FindAll()`).
+* Prefer the built-in delegates over custom delegate types unless you need a **named, self-documenting** delegate signature.
+
+---
+
+---
+
+## Tuples & Deconstruction
+
+### Q: What Are Tuples in C# and When Should You Use Them?
+
+**A:**
+
+A **tuple** is a lightweight data structure that groups **multiple values** into a single object without requiring you to define a class or struct. C# supports two kinds: the older `System.Tuple` (reference type) and the modern `System.ValueTuple` (value type, introduced in C# 7).
+
+---
+
+## 🔹 `ValueTuple` (C# 7+, Recommended)
+
+### Definition:
+
+* A **value type** (stored on the stack when local).
+* Supports **named elements** and **deconstruction**.
+* Created using the `( )` syntax.
+
+### Example:
+
+```csharp
+// Named tuple
+(string Name, int Age) person = ("Alice", 30);
+Console.WriteLine(person.Name); // Alice
+Console.WriteLine(person.Age);  // 30
+
+// Method returning a named tuple
+(double Lat, double Lon) GetCoordinates()
+{
+    return (47.6062, -122.3321);
+}
+
+var coords = GetCoordinates();
+Console.WriteLine($"{coords.Lat}, {coords.Lon}");
+```
+
+---
+
+## 🔹 `Tuple` (Legacy)
+
+### Definition:
+
+* A **reference type** (allocated on the heap).
+* Elements accessed via `Item1`, `Item2`, etc. — **no named members**.
+* Less ergonomic and largely replaced by `ValueTuple`.
+
+### Example:
+
+```csharp
+Tuple<string, int> person = Tuple.Create("Alice", 30);
+Console.WriteLine(person.Item1); // Alice
+Console.WriteLine(person.Item2); // 30
+```
+
+---
+
+## 🔹 Named vs Unnamed Tuples
+
+```csharp
+// Unnamed — fields are Item1, Item2
+var unnamed = (10, "hello");
+Console.WriteLine(unnamed.Item1); // 10
+
+// Named — fields have meaningful names
+var named = (Id: 10, Message: "hello");
+Console.WriteLine(named.Id); // 10
+```
+
+> **Note:** Named element names are a **compile-time convenience** — they are not preserved at runtime via reflection.
+
+---
+
+## 🔹 Deconstruction
+
+Tuples can be **deconstructed** into individual variables:
+
+```csharp
+(string name, int age) = ("Alice", 30);
+Console.WriteLine(name); // Alice
+
+// Discard values you don't need
+(_, int ageOnly) = ("Alice", 30);
+
+// Deconstruct from a method
+var (lat, lon) = GetCoordinates();
+```
+
+You can also add deconstruction to your own types by implementing a `Deconstruct` method:
+
+```csharp
+public class Point
+{
+    public int X { get; }
+    public int Y { get; }
+
+    public Point(int x, int y) => (X, Y) = (x, y);
+
+    public void Deconstruct(out int x, out int y)
+    {
+        x = X;
+        y = Y;
+    }
+}
+
+var (px, py) = new Point(3, 4);
+```
+
+---
+
+## 🔸 Summary Table
+
+| Feature             | `ValueTuple` (C# 7+)          | `Tuple` (Legacy)             |
+| ------------------- | ------------------------------ | ---------------------------- |
+| Type                | Value type (`struct`)          | Reference type (`class`)     |
+| Named elements      | ✅ Yes                          | ❌ No (`Item1`, `Item2`)      |
+| Deconstruction      | ✅ Yes                          | ❌ No                         |
+| Performance         | ✅ Stack-allocated (when local) | ❌ Heap-allocated              |
+| Mutable elements    | ✅ Yes                          | ❌ Read-only properties        |
+| Syntax              | `(int, string)`               | `Tuple<int, string>`         |
+
+---
+
+## ✅ When to Use
+
+* Use tuples for **returning multiple values** from a method without creating a dedicated type.
+* Use **named tuples** to improve readability when the meaning of elements isn't obvious.
+* **Prefer a `record` or `class`** when the data has behavior, needs validation, or is used across many parts of the codebase.
+* Avoid tuples in **public APIs** of libraries — named types are more maintainable and self-documenting.
+
+---
+
+---
+
+## Dynamic & Reflection
+
+### Q: What Is the `dynamic` Keyword in C# and How Does It Differ from `var` and `object`?
+
+**A:**
+
+C# provides three ways to work with values whose type may not be explicitly stated: `var`, `object`, and `dynamic`. While they may look similar at a glance, they differ fundamentally in **when** type resolution happens and **what safety guarantees** they provide.
+
+---
+
+## 🔹 `var` — Compile-Time Type Inference
+
+### Definition:
+
+* The compiler **infers the type** from the right-hand side of the assignment.
+* The variable is **strongly typed** — the type is known at compile time.
+* You get full **IntelliSense** and compile-time checks.
+
+### Example:
+
+```csharp
+var number = 42;         // Inferred as int
+var name = "Alice";      // Inferred as string
+
+// number = "text";      // ❌ Compile error: cannot convert string to int
+Console.WriteLine(name.Length); // ✅ IntelliSense works
+```
+
+---
+
+## 🔹 `object` — Base Type with Casting
+
+### Definition:
+
+* The **base type** for all types in C# (`System.Object`).
+* Any value can be assigned, but you must **cast** to access type-specific members.
+* Checked at **compile time** after casting.
+
+### Example:
+
+```csharp
+object value = 42;
+
+// Console.WriteLine(value.Length); // ❌ Compile error: object has no Length
+int number = (int)value;            // ✅ Explicit cast required
+Console.WriteLine(number);          // 42
+
+value = "Hello";
+string text = (string)value;
+Console.WriteLine(text.Length);      // 5
+```
+
+---
+
+## 🔹 `dynamic` — Runtime Type Resolution (DLR)
+
+### Definition:
+
+* Type checking is **deferred entirely to runtime** using the **Dynamic Language Runtime (DLR)**.
+* No IntelliSense, no compile-time type checking.
+* If a member doesn't exist, it throws a `RuntimeBinderException` at runtime.
+
+### Example:
+
+```csharp
+dynamic value = 42;
+Console.WriteLine(value + 10);  // ✅ Works at runtime: 52
+
+value = "Hello";
+Console.WriteLine(value.Length); // ✅ Works at runtime: 5
+
+value = 42;
+// Console.WriteLine(value.Length); // ❌ RuntimeBinderException at runtime
+```
+
+---
+
+## 🔹 Performance Implications
+
+* `var` — **zero overhead**, same as specifying the type directly.
+* `object` — may involve **boxing** for value types and requires casting.
+* `dynamic` — **significant overhead** due to DLR dispatch, caching, and reflection-like resolution. Avoid in hot paths.
+
+---
+
+## 🔹 Use Cases for `dynamic`
+
+* **COM interop** — working with Office Automation APIs without strongly-typed wrappers.
+* **Working with JSON** — accessing properties on deserialized JSON objects (e.g., `ExpandoObject`).
+* **Interop with dynamic languages** — IronPython, IronRuby.
+* **Avoiding excessive casting** in code that works with many unknown types at runtime.
+
+### Example: Working with ExpandoObject
+
+```csharp
+dynamic expando = new System.Dynamic.ExpandoObject();
+expando.Name = "Alice";
+expando.Age = 30;
+
+Console.WriteLine($"{expando.Name} is {expando.Age}"); // Alice is 30
+```
+
+---
+
+## 🔸 Summary Table
+
+| Feature                 | `var`                      | `object`                   | `dynamic`                    |
+| ----------------------- | -------------------------- | -------------------------- | ---------------------------- |
+| Type resolution         | Compile time               | Compile time               | Runtime (DLR)                |
+| Type safety             | ✅ Full                     | ✅ After cast                | ❌ None at compile time       |
+| IntelliSense            | ✅ Yes                      | ❌ Only `object` members     | ❌ No                         |
+| Boxing for value types  | No                         | ✅ Yes                       | ✅ Yes                        |
+| Performance             | ✅ Best                     | ⚠️ Casting overhead         | ❌ DLR overhead               |
+| Can change type?        | ❌ No                       | ✅ Yes (via reassignment)    | ✅ Yes                        |
+| Must initialize?        | ✅ Yes                      | No                         | No                           |
+
+---
+
+## ✅ When to Use
+
+* Use **`var`** when the type is obvious from the right-hand side and you want cleaner code.
+* Use **`object`** when you need a common base type for heterogeneous collections and will cast explicitly.
+* Use **`dynamic`** only when compile-time type information is genuinely unavailable (COM interop, JSON, dynamic language interop).
+* **Avoid `dynamic`** in performance-critical paths and when compile-time safety is important.
+
+---
+
+---
+
+## Pattern Matching
+
+### Q: What Is Pattern Matching in C# and What Patterns Are Available?
+
+**A:**
+
+**Pattern matching** is a feature in C# that lets you test a value against a **shape** or **condition** and extract information from it. It has evolved significantly across C# versions, from basic type checks to rich, composable patterns.
+
+---
+
+## 🔹 Type Patterns
+
+Test whether a value is of a specific type and optionally bind it to a variable:
+
+```csharp
+object obj = "Hello";
+
+if (obj is string s)
+{
+    Console.WriteLine(s.Length); // 5
+}
+
+// In a switch expression
+string Describe(object value) => value switch
+{
+    int i    => $"Integer: {i}",
+    string s => $"String of length {s.Length}",
+    null     => "null",
+    _        => $"Other: {value.GetType().Name}"
+};
+```
+
+---
+
+## 🔹 Property Patterns
+
+Match on the **properties** of an object:
+
+```csharp
+public record Address(string City, string Country);
+
+string GetShippingZone(Address addr) => addr switch
+{
+    { Country: "US" }              => "Domestic",
+    { Country: "CA" }              => "North America",
+    { Country: "GB", City: "London" } => "London Express",
+    { Country: "GB" }              => "Europe",
+    _                              => "International"
+};
+```
+
+### Nested Property Patterns:
+
+```csharp
+public record Order(Address ShippingAddress, decimal Total);
+
+string Classify(Order order) => order switch
+{
+    { ShippingAddress.Country: "US", Total: > 100 } => "US priority",
+    { ShippingAddress.Country: "US" }               => "US standard",
+    _                                               => "International"
+};
+```
+
+---
+
+## 🔹 Positional Patterns
+
+Match on deconstructed values (works with types that have a `Deconstruct` method or positional records):
+
+```csharp
+public record Point(int X, int Y);
+
+string Quadrant(Point p) => p switch
+{
+    (0, 0)       => "Origin",
+    (> 0, > 0)   => "Q1",
+    (< 0, > 0)   => "Q2",
+    (< 0, < 0)   => "Q3",
+    (> 0, < 0)   => "Q4",
+    _            => "On axis"
+};
+```
+
+---
+
+## 🔹 Relational Patterns (C# 9)
+
+Use relational operators (`<`, `>`, `<=`, `>=`) directly in patterns:
+
+```csharp
+string Classify(int temperature) => temperature switch
+{
+    < 0    => "Freezing",
+    >= 0 and < 15 => "Cold",
+    >= 15 and < 25 => "Mild",
+    >= 25 and < 35 => "Warm",
+    >= 35  => "Hot"
+};
+```
+
+---
+
+## 🔹 Logical Patterns: `and`, `or`, `not` (C# 9)
+
+Combine patterns with logical combinators:
+
+```csharp
+// and
+if (obj is int n and > 0 and < 100)
+    Console.WriteLine($"Positive two-digit or less: {n}");
+
+// or
+if (obj is string or int)
+    Console.WriteLine("String or int");
+
+// not
+if (obj is not null)
+    Console.WriteLine("Not null");
+
+// Combined in a switch
+string ClassifyChar(char c) => c switch
+{
+    >= 'a' and <= 'z' => "lowercase",
+    >= 'A' and <= 'Z' => "uppercase",
+    >= '0' and <= '9' => "digit",
+    _                 => "other"
+};
+```
+
+---
+
+## 🔹 List Patterns (C# 11)
+
+Match against the **elements** of an array or list:
+
+```csharp
+int[] numbers = { 1, 2, 3 };
+
+var result = numbers switch
+{
+    [1, 2, 3]       => "Exact match: 1, 2, 3",
+    [1, ..]         => "Starts with 1",
+    [.., 3]         => "Ends with 3",
+    [_, 2, _]       => "Middle element is 2",
+    { Length: 0 }   => "Empty",
+    _               => "Other"
+};
+
+// Slice pattern with variable binding
+if (numbers is [var first, .. var rest])
+{
+    Console.WriteLine($"First: {first}, Rest count: {rest.Length}");
+}
+```
+
+---
+
+## 🔹 `is` Expressions vs `switch` Expressions
+
+```csharp
+// is expression — good for single checks
+if (shape is Circle { Radius: > 10 } bigCircle)
+    Console.WriteLine($"Big circle with radius {bigCircle.Radius}");
+
+// switch expression — good for multiple cases
+string Describe(Shape shape) => shape switch
+{
+    Circle { Radius: 0 }            => "Point",
+    Circle { Radius: var r }        => $"Circle (r={r})",
+    Rectangle { Width: var w, Height: var h } when w == h => $"Square ({w})",
+    Rectangle { Width: var w, Height: var h } => $"Rectangle ({w}x{h})",
+    _                               => "Unknown shape"
+};
+```
+
+---
+
+## 🔸 Summary Table
+
+| Pattern             | C# Version | Description                              | Example                          |
+| ------------------- | ----------- | ---------------------------------------- | -------------------------------- |
+| Type                | 7.0         | Check and cast type                      | `obj is string s`                |
+| Constant            | 7.0         | Match a constant value                   | `x is 42`                        |
+| `var`               | 7.0         | Always matches, binds to variable        | `x is var v`                     |
+| Property            | 8.0         | Match property values                    | `{ Name: "Alice" }`             |
+| Positional          | 8.0         | Match deconstructed values               | `(> 0, > 0)`                    |
+| Switch expression   | 8.0         | Expression-based exhaustive matching     | `x switch { ... }`              |
+| Relational          | 9.0         | Compare with `<`, `>`, `<=`, `>=`        | `> 0 and < 100`                 |
+| Logical             | 9.0         | Combine with `and`, `or`, `not`          | `not null`                       |
+| List                | 11.0        | Match array/list elements and slices     | `[1, .., 3]`                     |
+
+---
+
+## ✅ When to Use
+
+* Use **type patterns** for safe casting and polymorphic dispatch without `is`/`as` chains.
+* Use **property patterns** to match on object state in a concise, readable way.
+* Use **switch expressions** when you have multiple mutually exclusive conditions — they enforce exhaustiveness.
+* Use **relational and logical patterns** to replace complex `if`/`else` chains with clear, declarative conditions.
+* Use **list patterns** (C# 11) for sequence matching, protocol parsing, or command-line argument processing.
 
 ---
 
