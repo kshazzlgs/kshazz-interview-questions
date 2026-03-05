@@ -75,6 +75,22 @@
   - [Q68: How Would You Test a Controller with JWT-Based Auth?](#how-would-you-test-a-controller-with-jwt-based-auth)
   - [Q69: How Do You Set Up CI/CD for ASP.NET Core on GitHub Actions or Azure DevOps?](#how-do-you-set-up-cicd-for-aspnet-core-on-github-actions-or-azure-devops)
   - [Q70: What Is Testcontainers and How Is It Useful in .NET Testing?](#what-is-testcontainers-and-how-is-it-useful-in-net-testing)
+- [Model Binding & Validation](#model-binding--validation)
+  - [Q76: What Is Model Binding in ASP.NET Core and How Does It Work?](#what-is-model-binding-in-aspnet-core-and-how-does-it-work)
+  - [Q77: What Are the Different Types of Action Results in ASP.NET Core?](#what-are-the-different-types-of-action-results-in-aspnet-core)
+  - [Q78: What Is Content Negotiation in ASP.NET Core?](#what-is-content-negotiation-in-aspnet-core)
+- [Error Handling](#error-handling)
+  - [Q79: How Do You Implement Global Exception Handling in ASP.NET Core?](#how-do-you-implement-global-exception-handling-in-aspnet-core)
+- [Health Checks & Monitoring](#health-checks--monitoring)
+  - [Q80: What Are Health Checks in ASP.NET Core and How Do You Implement Them?](#what-are-health-checks-in-aspnet-core-and-how-do-you-implement-them)
+- [CORS](#cors)
+  - [Q81: What Is CORS and How Do You Configure It in ASP.NET Core?](#what-is-cors-and-how-do-you-configure-it-in-aspnet-core)
+- [Real-Time Communication](#real-time-communication)
+  - [Q82: What Is SignalR and How Does It Work in ASP.NET Core?](#what-is-signalr-and-how-does-it-work-in-aspnet-core)
+  - [Q83: What Is gRPC and When Should You Use It in .NET?](#what-is-grpc-and-when-should-you-use-it-in-net)
+- [Service Registration & Startup](#service-registration--startup)
+  - [Q84: What Is the Difference Between AddMvc, AddControllers, AddControllersWithViews, and AddRazorPages?](#what-is-the-difference-between-addmvc-addcontrollers-addcontrollerswithviews-and-addrazorpages)
+  - [Q85: What Are Tag Helpers in ASP.NET Core?](#what-are-tag-helpers-in-aspnet-core)
 
 ## Routing & Middleware
 
@@ -6303,6 +6319,1259 @@ Use `sqlContainer.ConnectionString` in your test `DbContext`.
 | Isolation       | Fresh container per test class     |
 | Realistic tests | Real DB, real ports, real behavior |
 | Cross-platform  | Works on Linux, macOS, Windows     |
+
+---
+
+---
+
+## Model Binding & Validation
+
+### Q: What Is Model Binding in ASP.NET Core and How Does It Work?
+
+**A:**
+
+**What Is Model Binding?**
+
+Model binding is the process by which ASP.NET Core **automatically maps data from HTTP requests** (route values, query strings, request body, headers, form data) **to action method parameters or model properties**.
+
+> Instead of manually parsing `HttpContext.Request`, model binding does the heavy lifting for you.
+
+---
+
+**Binding Sources and Attributes**
+
+ASP.NET Core can bind data from multiple sources. You control which source to use with attributes:
+
+| Attribute        | Source                        | Example                              |
+| ---------------- | ----------------------------- | ------------------------------------ |
+| `[FromRoute]`    | Route values (`/api/users/5`) | `[FromRoute] int id`                 |
+| `[FromQuery]`    | Query string (`?page=2`)     | `[FromQuery] int page`               |
+| `[FromBody]`     | Request body (JSON/XML)      | `[FromBody] CreateUserDto dto`       |
+| `[FromHeader]`   | HTTP headers                  | `[FromHeader] string Authorization`  |
+| `[FromForm]`     | Form data                     | `[FromForm] IFormFile file`          |
+| `[FromServices]` | DI container                  | `[FromServices] ILogger<T> logger`   |
+
+---
+
+**Default Binding Order (Precedence)**
+
+When no explicit attribute is specified, ASP.NET Core tries these sources in order:
+
+1. **Form values** (for POST with form content type)
+2. **Route values**
+3. **Query string**
+
+For `[ApiController]`-attributed controllers, `[FromBody]` is inferred for complex types and `[FromQuery]` is inferred for simple types.
+
+---
+
+**Code Examples**
+
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+public class ProductsController : ControllerBase
+{
+    // Binding from route
+    [HttpGet("{id}")]
+    public IActionResult GetById([FromRoute] int id)
+    {
+        return Ok(new { ProductId = id });
+    }
+
+    // Binding from query string
+    [HttpGet]
+    public IActionResult Search([FromQuery] string name, [FromQuery] int page = 1)
+    {
+        return Ok(new { Name = name, Page = page });
+    }
+
+    // Binding from body (inferred for complex types with [ApiController])
+    [HttpPost]
+    public IActionResult Create([FromBody] CreateProductDto dto)
+    {
+        return CreatedAtAction(nameof(GetById), new { id = 1 }, dto);
+    }
+
+    // Binding from header
+    [HttpGet("check")]
+    public IActionResult CheckHeader([FromHeader(Name = "X-Correlation-Id")] string correlationId)
+    {
+        return Ok(new { CorrelationId = correlationId });
+    }
+
+    // Binding from form (file upload)
+    [HttpPost("upload")]
+    public IActionResult Upload([FromForm] IFormFile file)
+    {
+        return Ok(new { FileName = file.FileName, Size = file.Length });
+    }
+}
+```
+
+---
+
+**Custom Model Binder**
+
+For advanced scenarios you can implement `IModelBinder`:
+
+```csharp
+public class CommaSeparatedModelBinder : IModelBinder
+{
+    public Task BindModelAsync(ModelBindingContext bindingContext)
+    {
+        var value = bindingContext.ValueProvider.GetValue(bindingContext.FieldName).FirstValue;
+
+        if (string.IsNullOrEmpty(value))
+        {
+            bindingContext.Result = ModelBindingResult.Success(Array.Empty<string>());
+            return Task.CompletedTask;
+        }
+
+        var result = value.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        bindingContext.Result = ModelBindingResult.Success(result);
+        return Task.CompletedTask;
+    }
+}
+
+// Usage
+[HttpGet("filter")]
+public IActionResult Filter(
+    [ModelBinder(BinderType = typeof(CommaSeparatedModelBinder))] string[] tags)
+{
+    return Ok(tags);
+}
+```
+
+---
+
+✅ Model binding eliminates boilerplate parsing code — use explicit `[From*]` attributes in APIs for clarity and to avoid ambiguity.
+
+---
+
+---
+
+### Q: What Are the Different Types of Action Results in ASP.NET Core?
+
+**A:**
+
+**Overview**
+
+Action results represent the **HTTP response** returned from a controller action. ASP.NET Core provides a rich set of built-in result types through the `IActionResult` interface and the strongly-typed `ActionResult<T>`.
+
+---
+
+**`IActionResult` vs `ActionResult<T>`**
+
+| Feature               | `IActionResult`                    | `ActionResult<T>`                          |
+| --------------------- | ---------------------------------- | ------------------------------------------ |
+| Return type           | Any result type                    | Specific type `T` or an action result      |
+| Swagger/OpenAPI       | Requires `[ProducesResponseType]`  | Automatically infers the `200` response    |
+| Type safety           | No compile-time type checking      | Compile-time type checking for `T`         |
+| Recommended for APIs  | When returning multiple types      | When the success type is known             |
+
+```csharp
+// IActionResult — flexible but less descriptive
+[HttpGet("{id}")]
+public IActionResult GetById(int id)
+{
+    var product = _repo.Find(id);
+    if (product is null) return NotFound();
+    return Ok(product);
+}
+
+// ActionResult<T> — preferred for APIs
+[HttpGet("{id}")]
+public ActionResult<ProductDto> GetById(int id)
+{
+    var product = _repo.Find(id);
+    if (product is null) return NotFound();
+    return product; // implicit conversion to ActionResult<ProductDto>
+}
+```
+
+---
+
+**Common Action Result Types**
+
+| Result Type              | HTTP Status | Helper Method         | Use Case                       |
+| ------------------------ | ----------- | --------------------- | ------------------------------ |
+| `OkResult`               | 200         | `Ok()`                | Successful request             |
+| `OkObjectResult`         | 200         | `Ok(value)`           | Return data                    |
+| `CreatedAtActionResult`  | 201         | `CreatedAtAction()`   | Resource created               |
+| `NoContentResult`        | 204         | `NoContent()`         | Successful, no body            |
+| `BadRequestResult`       | 400         | `BadRequest()`        | Invalid request                |
+| `NotFoundResult`         | 404         | `NotFound()`          | Resource not found             |
+| `UnauthorizedResult`     | 401         | `Unauthorized()`      | Not authenticated              |
+| `ForbidResult`           | 403         | `Forbid()`            | Not authorized                 |
+| `ConflictResult`         | 409         | `Conflict()`          | Conflict detected              |
+| `StatusCodeResult`       | Any         | `StatusCode(code)`    | Custom status code             |
+| `JsonResult`             | 200         | `Json(value)`         | Force JSON response            |
+| `ContentResult`          | 200         | `Content(text)`       | Plain text response            |
+| `FileResult`             | 200         | `File(bytes, type)`   | File download                  |
+| `RedirectResult`         | 302         | `Redirect(url)`       | Redirect to URL                |
+
+---
+
+**Code Example**
+
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+public class OrdersController : ControllerBase
+{
+    [HttpPost]
+    public ActionResult<OrderDto> Create(CreateOrderDto dto)
+    {
+        var order = _service.CreateOrder(dto);
+        return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
+    }
+
+    [HttpGet("{id}")]
+    public ActionResult<OrderDto> GetById(int id)
+    {
+        var order = _service.GetOrder(id);
+        if (order is null) return NotFound();
+        return order;
+    }
+
+    [HttpDelete("{id}")]
+    public IActionResult Delete(int id)
+    {
+        var deleted = _service.Delete(id);
+        if (!deleted) return NotFound();
+        return NoContent();
+    }
+
+    [HttpGet("{id}/invoice")]
+    public IActionResult DownloadInvoice(int id)
+    {
+        var bytes = _service.GenerateInvoicePdf(id);
+        return File(bytes, "application/pdf", $"invoice-{id}.pdf");
+    }
+}
+```
+
+---
+
+✅ Use `ActionResult<T>` for API endpoints to get better Swagger documentation and type safety. Use `IActionResult` when an action needs to return many different result types.
+
+---
+
+---
+
+### Q: What Is Content Negotiation in ASP.NET Core?
+
+**A:**
+
+**Definition**
+
+Content negotiation is the process by which the server selects the **best response format** (JSON, XML, etc.) based on the client's `Accept` header. It allows a single endpoint to serve multiple representations of the same resource.
+
+---
+
+**How It Works**
+
+1. The client sends an `Accept` header (e.g., `Accept: application/json` or `Accept: application/xml`).
+2. ASP.NET Core checks its list of **output formatters**.
+3. The first formatter that can produce the requested media type is used.
+4. If no formatter matches, the **default formatter** (JSON) is used.
+
+---
+
+**Default JSON Serializer**
+
+| Serializer            | Package                          | Notes                                              |
+| --------------------- | -------------------------------- | -------------------------------------------------- |
+| `System.Text.Json`    | Built-in (.NET Core 3.0+)       | Default, high performance, fewer features          |
+| `Newtonsoft.Json`     | `Microsoft.AspNetCore.Mvc.NewtonsoftJson` | More features, widely used in older projects |
+
+```csharp
+// Switch to Newtonsoft.Json
+builder.Services.AddControllers()
+    .AddNewtonsoftJson(options =>
+    {
+        options.SerializerSettings.ReferenceLoopHandling =
+            Newtonsoft.Json.ReferenceLoopHandling.Ignore;
+    });
+```
+
+---
+
+**Adding XML Formatter Support**
+
+```csharp
+builder.Services.AddControllers()
+    .AddXmlSerializerFormatters();
+```
+
+Now a request with `Accept: application/xml` will return XML instead of JSON.
+
+---
+
+**Input Formatters**
+
+Input formatters handle **deserialization** of request bodies. By default, ASP.NET Core uses `System.Text.Json` for JSON input. You can add XML input support:
+
+```csharp
+builder.Services.AddControllers()
+    .AddXmlSerializerFormatters(); // adds both input and output XML formatters
+```
+
+---
+
+**Custom Formatter**
+
+You can create a custom output formatter by extending `TextOutputFormatter`:
+
+```csharp
+public class CsvOutputFormatter : TextOutputFormatter
+{
+    public CsvOutputFormatter()
+    {
+        SupportedMediaTypes.Add("text/csv");
+        SupportedEncodings.Add(Encoding.UTF8);
+    }
+
+    protected override bool CanWriteType(Type? type) =>
+        typeof(IEnumerable).IsAssignableFrom(type);
+
+    public override async Task WriteResponseBodyAsync(
+        OutputFormatterWriteContext context, Encoding selectedEncoding)
+    {
+        var response = context.HttpContext.Response;
+        var items = (IEnumerable<object>)context.Object!;
+
+        foreach (var item in items)
+        {
+            var values = item.GetType().GetProperties()
+                .Select(p => p.GetValue(item)?.ToString() ?? "");
+            await response.WriteAsync(string.Join(",", values) + "\n");
+        }
+    }
+}
+
+// Register in Program.cs
+builder.Services.AddControllers(options =>
+{
+    options.OutputFormatters.Add(new CsvOutputFormatter());
+});
+```
+
+---
+
+✅ Content negotiation lets your API serve JSON, XML, CSV, or any custom format from the same endpoint — use `Accept` headers to drive format selection and keep your controllers format-agnostic.
+
+---
+
+---
+
+## Error Handling
+
+### Q: How Do You Implement Global Exception Handling in ASP.NET Core?
+
+**A:**
+
+**Why Global Exception Handling?**
+
+Without centralized error handling, unhandled exceptions result in **500 Internal Server Error** responses with no useful information for API consumers and potentially leaked stack traces in production.
+
+---
+
+**Built-in Middleware**
+
+ASP.NET Core provides two built-in options:
+
+```csharp
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage(); // detailed error page with stack trace
+}
+else
+{
+    app.UseExceptionHandler("/error"); // production-safe error handler
+}
+```
+
+---
+
+**UseExceptionHandler with ProblemDetails (RFC 7807)**
+
+```csharp
+app.UseExceptionHandler(appError =>
+{
+    appError.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/problem+json";
+
+        var feature = context.Features.Get<IExceptionHandlerFeature>();
+        if (feature is not null)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status500InternalServerError,
+                Title = "An unexpected error occurred",
+                Detail = feature.Error.Message,
+                Instance = context.Request.Path
+            };
+
+            await context.Response.WriteAsJsonAsync(problem);
+        }
+    });
+});
+```
+
+---
+
+**Custom Exception Middleware**
+
+For full control, create your own middleware:
+
+```csharp
+public class GlobalExceptionMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly ILogger<GlobalExceptionMiddleware> _logger;
+
+    public GlobalExceptionMiddleware(RequestDelegate next,
+        ILogger<GlobalExceptionMiddleware> logger)
+    {
+        _next = next;
+        _logger = logger;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        try
+        {
+            await _next(context);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled exception for {Path}", context.Request.Path);
+            await HandleExceptionAsync(context, ex);
+        }
+    }
+
+    private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
+    {
+        var (statusCode, title) = exception switch
+        {
+            ArgumentException => (StatusCodes.Status400BadRequest, "Bad Request"),
+            KeyNotFoundException => (StatusCodes.Status404NotFound, "Not Found"),
+            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
+            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error")
+        };
+
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/problem+json";
+
+        var problem = new ProblemDetails
+        {
+            Status = statusCode,
+            Title = title,
+            Detail = exception.Message,
+            Instance = context.Request.Path
+        };
+
+        await context.Response.WriteAsJsonAsync(problem);
+    }
+}
+
+// Register in Program.cs
+app.UseMiddleware<GlobalExceptionMiddleware>();
+```
+
+---
+
+**IExceptionHandler (.NET 8+)**
+
+.NET 8 introduced `IExceptionHandler` for a cleaner, DI-friendly approach:
+
+```csharp
+public class AppExceptionHandler : IExceptionHandler
+{
+    private readonly ILogger<AppExceptionHandler> _logger;
+
+    public AppExceptionHandler(ILogger<AppExceptionHandler> logger)
+    {
+        _logger = logger;
+    }
+
+    public async ValueTask<bool> TryHandleAsync(
+        HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
+    {
+        _logger.LogError(exception, "Exception occurred: {Message}", exception.Message);
+
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status500InternalServerError,
+            Title = "Server Error",
+            Detail = exception.Message
+        };
+
+        httpContext.Response.StatusCode = problem.Status.Value;
+        await httpContext.Response.WriteAsJsonAsync(problem, cancellationToken);
+
+        return true; // exception was handled
+    }
+}
+
+// Register in Program.cs
+builder.Services.AddExceptionHandler<AppExceptionHandler>();
+builder.Services.AddProblemDetails();
+
+app.UseExceptionHandler();
+```
+
+---
+
+**Summary**
+
+| Approach                          | Best For                                   |
+| --------------------------------- | ------------------------------------------ |
+| `UseDeveloperExceptionPage`       | Development only — detailed stack traces   |
+| `UseExceptionHandler`             | Production — safe error responses          |
+| Custom exception middleware       | Full control over error mapping and logging |
+| `IExceptionHandler` (.NET 8+)     | DI-friendly, composable handlers           |
+| `ProblemDetails` (RFC 7807)       | Standardized error response format         |
+
+---
+
+✅ Always use global exception handling in production APIs. Prefer `ProblemDetails` for standardized error responses and `IExceptionHandler` on .NET 8+ for clean, testable error handling.
+
+---
+
+---
+
+## Health Checks & Monitoring
+
+### Q: What Are Health Checks in ASP.NET Core and How Do You Implement Them?
+
+**A:**
+
+**What Are Health Checks?**
+
+Health checks are endpoints that report the **health status** of your application and its dependencies (databases, external services, message queues). They are essential for **container orchestrators** like Kubernetes, **load balancers**, and **monitoring systems**.
+
+---
+
+**The `IHealthCheck` Interface**
+
+Every health check implements `IHealthCheck`:
+
+```csharp
+public class DatabaseHealthCheck : IHealthCheck
+{
+    private readonly string _connectionString;
+
+    public DatabaseHealthCheck(IConfiguration config)
+    {
+        _connectionString = config.GetConnectionString("Default")!;
+    }
+
+    public async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            return HealthCheckResult.Healthy("Database is reachable.");
+        }
+        catch (Exception ex)
+        {
+            return HealthCheckResult.Unhealthy("Database is unreachable.", ex);
+        }
+    }
+}
+```
+
+---
+
+**Built-in Health Check Packages**
+
+| Package                                          | Checks                           |
+| ------------------------------------------------ | -------------------------------- |
+| `AspNetCore.HealthChecks.SqlServer`              | SQL Server connectivity          |
+| `AspNetCore.HealthChecks.NpgSql`                 | PostgreSQL connectivity          |
+| `AspNetCore.HealthChecks.Redis`                  | Redis connectivity               |
+| `AspNetCore.HealthChecks.Uris`                   | External HTTP endpoint           |
+| `AspNetCore.HealthChecks.RabbitMQ`               | RabbitMQ connectivity            |
+
+---
+
+**Registration and Endpoint Mapping**
+
+```csharp
+// Program.cs
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "db", "ready" })
+    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" });
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("live")
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = WriteHealthCheckResponse
+});
+```
+
+---
+
+**Custom Response Writer**
+
+```csharp
+static async Task WriteHealthCheckResponse(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+
+    var result = new
+    {
+        status = report.Status.ToString(),
+        checks = report.Entries.Select(e => new
+        {
+            name = e.Key,
+            status = e.Value.Status.ToString(),
+            description = e.Value.Description,
+            duration = e.Value.Duration.TotalMilliseconds
+        }),
+        totalDuration = report.TotalDuration.TotalMilliseconds
+    };
+
+    await context.Response.WriteAsJsonAsync(result);
+}
+```
+
+---
+
+**Liveness vs Readiness Probes (Kubernetes)**
+
+| Probe      | Purpose                                             | Health Check Tags |
+| ---------- | --------------------------------------------------- | ----------------- |
+| Liveness   | Is the app process alive and not deadlocked?        | `live`            |
+| Readiness  | Is the app ready to accept traffic (DB connected)?  | `ready`           |
+
+```yaml
+# Kubernetes deployment excerpt
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 80
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 80
+  initialDelaySeconds: 10
+  periodSeconds: 30
+```
+
+---
+
+**Health Check UI**
+
+The `AspNetCore.HealthChecks.UI` package provides a dashboard:
+
+```csharp
+builder.Services.AddHealthChecksUI()
+    .AddInMemoryStorage();
+
+app.MapHealthChecksUI(); // available at /healthchecks-ui
+```
+
+---
+
+✅ Use health checks to enable automated monitoring and self-healing infrastructure. Separate liveness and readiness probes so orchestrators can restart hung processes without prematurely routing traffic.
+
+---
+
+---
+
+## CORS
+
+### Q: What Is CORS and How Do You Configure It in ASP.NET Core?
+
+**A:**
+
+**What Is CORS?**
+
+**Cross-Origin Resource Sharing (CORS)** is a security mechanism that allows a web application running at one origin (e.g., `https://app.example.com`) to make HTTP requests to a different origin (e.g., `https://api.example.com`). Browsers block cross-origin requests by default; CORS headers tell the browser which cross-origin requests are permitted.
+
+---
+
+**Simple vs Preflight Requests**
+
+| Type       | Description                                                                 |
+| ---------- | --------------------------------------------------------------------------- |
+| Simple     | GET, HEAD, or POST with simple headers — browser sends request directly     |
+| Preflight  | Non-simple methods/headers — browser sends an OPTIONS request first         |
+
+A preflight `OPTIONS` request asks the server: "Is this cross-origin request allowed?" The server responds with CORS headers (`Access-Control-Allow-Origin`, etc.).
+
+---
+
+**Named CORS Policies**
+
+```csharp
+// Program.cs
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("https://app.example.com", "https://staging.example.com")
+              .WithMethods("GET", "POST", "PUT", "DELETE")
+              .WithHeaders("Content-Type", "Authorization")
+              .AllowCredentials();
+    });
+
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
+app.UseCors("AllowFrontend"); // apply as default policy
+```
+
+---
+
+**Default Policy**
+
+```csharp
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("https://app.example.com")
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
+app.UseCors(); // applies the default policy
+```
+
+---
+
+**Attribute-Based CORS**
+
+You can override the global policy per controller or action:
+
+```csharp
+[EnableCors("AllowAll")]
+[ApiController]
+[Route("api/[controller]")]
+public class PublicController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult GetPublicData() => Ok("Public data");
+
+    [DisableCors]
+    [HttpGet("internal")]
+    public IActionResult GetInternalData() => Ok("Internal only");
+}
+```
+
+---
+
+**Summary**
+
+| Configuration          | Scope                        | Usage                              |
+| ---------------------- | ---------------------------- | ---------------------------------- |
+| `AddCors` + `UseCors`  | Global (middleware pipeline) | Apply a default or named policy    |
+| `[EnableCors("name")]` | Controller or action         | Override global policy             |
+| `[DisableCors]`        | Controller or action         | Disable CORS for specific endpoint |
+
+---
+
+✅ Always restrict CORS to known origins in production. Use `AllowAnyOrigin` only during development. Place `UseCors()` before `UseAuthorization()` in the middleware pipeline.
+
+---
+
+---
+
+## Real-Time Communication
+
+### Q: What Is SignalR and How Does It Work in ASP.NET Core?
+
+**A:**
+
+**What Is SignalR?**
+
+**SignalR** is a library for ASP.NET Core that enables **real-time, bidirectional communication** between server and clients. It abstracts the underlying transport and automatically selects the best available mechanism.
+
+---
+
+**Transport Mechanisms**
+
+SignalR uses the following transports (in order of preference):
+
+| Transport       | Description                                        | Requirements       |
+| --------------- | -------------------------------------------------- | ------------------- |
+| WebSockets      | Full-duplex, persistent connection                 | Server + client support |
+| Server-Sent Events (SSE) | Server-to-client only, over HTTP            | HTTP/1.1+           |
+| Long Polling    | Client polls server repeatedly                     | Any HTTP            |
+
+SignalR **negotiates** the best transport automatically.
+
+---
+
+**Hub-Based Architecture**
+
+A **Hub** is the central abstraction — a server-side class that clients connect to and invoke methods on:
+
+```csharp
+public class ChatHub : Hub
+{
+    public async Task SendMessage(string user, string message)
+    {
+        await Clients.All.SendAsync("ReceiveMessage", user, message);
+    }
+
+    public async Task JoinGroup(string groupName)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        await Clients.Group(groupName).SendAsync("ReceiveMessage",
+            "System", $"{Context.ConnectionId} joined {groupName}");
+    }
+
+    public override async Task OnConnectedAsync()
+    {
+        await Clients.Caller.SendAsync("ReceiveMessage",
+            "System", "Welcome to the chat!");
+        await base.OnConnectedAsync();
+    }
+}
+```
+
+---
+
+**Strongly-Typed Hubs**
+
+Define a client interface for compile-time safety:
+
+```csharp
+public interface IChatClient
+{
+    Task ReceiveMessage(string user, string message);
+    Task UserJoined(string user);
+}
+
+public class ChatHub : Hub<IChatClient>
+{
+    public async Task SendMessage(string user, string message)
+    {
+        await Clients.All.ReceiveMessage(user, message);
+    }
+}
+```
+
+---
+
+**Server Setup**
+
+```csharp
+// Program.cs
+builder.Services.AddSignalR();
+
+app.MapHub<ChatHub>("/chathub");
+```
+
+---
+
+**JavaScript Client**
+
+```javascript
+const connection = new signalR.HubConnectionBuilder()
+    .withUrl("/chathub")
+    .withAutomaticReconnect()
+    .build();
+
+connection.on("ReceiveMessage", (user, message) => {
+    console.log(`${user}: ${message}`);
+});
+
+await connection.start();
+await connection.invoke("SendMessage", "Alice", "Hello!");
+```
+
+---
+
+**Groups and User Management**
+
+| Feature        | Method                                  | Description                         |
+| -------------- | --------------------------------------- | ----------------------------------- |
+| Send to all    | `Clients.All.SendAsync(...)`            | Broadcast to every connected client |
+| Send to caller | `Clients.Caller.SendAsync(...)`         | Reply to the calling client only    |
+| Send to group  | `Clients.Group("name").SendAsync(...)`  | Target a specific group             |
+| Send to user   | `Clients.User(userId).SendAsync(...)`   | Target a specific authenticated user|
+| Add to group   | `Groups.AddToGroupAsync(connId, name)`  | Add a connection to a group         |
+
+---
+
+**Scale-Out with Redis Backplane**
+
+For multi-server deployments, use a Redis backplane so messages reach all connected clients regardless of which server they are connected to:
+
+```csharp
+builder.Services.AddSignalR()
+    .AddStackExchangeRedis("localhost:6379", options =>
+    {
+        options.Configuration.ChannelPrefix = RedisChannel.Literal("ChatApp");
+    });
+```
+
+---
+
+✅ Use SignalR for real-time scenarios like chat, live dashboards, notifications, and collaborative editing. Use strongly-typed hubs for type safety and a Redis backplane for horizontal scaling.
+
+---
+
+---
+
+### Q: What Is gRPC and When Should You Use It in .NET?
+
+**A:**
+
+**What Is gRPC?**
+
+**gRPC** (Google Remote Procedure Call) is a high-performance, cross-platform RPC framework that uses **Protocol Buffers (protobuf)** for serialization and **HTTP/2** for transport. It enables efficient communication between services.
+
+---
+
+**Key Features**
+
+| Feature              | Description                                          |
+| -------------------- | ---------------------------------------------------- |
+| Protocol Buffers     | Binary serialization — smaller and faster than JSON  |
+| HTTP/2               | Multiplexed streams, header compression              |
+| Strongly typed       | Contract-first with `.proto` files                   |
+| Streaming            | Unary, server, client, and bidirectional streaming    |
+| Code generation      | Auto-generates client and server code                |
+
+---
+
+**Communication Patterns**
+
+| Pattern                | Description                                              |
+| ---------------------- | -------------------------------------------------------- |
+| Unary                  | Single request, single response (like REST)              |
+| Server streaming       | Single request, stream of responses                      |
+| Client streaming       | Stream of requests, single response                      |
+| Bidirectional streaming | Both client and server send streams simultaneously      |
+
+---
+
+**Proto File Definition**
+
+```protobuf
+// Protos/greet.proto
+syntax = "proto3";
+
+option csharp_namespace = "GrpcService";
+
+service Greeter {
+  rpc SayHello (HelloRequest) returns (HelloReply);
+  rpc SayHelloStream (HelloRequest) returns (stream HelloReply);
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+}
+```
+
+---
+
+**Server Implementation**
+
+```csharp
+public class GreeterService : Greeter.GreeterBase
+{
+    public override Task<HelloReply> SayHello(
+        HelloRequest request, ServerCallContext context)
+    {
+        return Task.FromResult(new HelloReply
+        {
+            Message = $"Hello {request.Name}"
+        });
+    }
+
+    public override async Task SayHelloStream(
+        HelloRequest request,
+        IServerStreamWriter<HelloReply> responseStream,
+        ServerCallContext context)
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            await responseStream.WriteAsync(new HelloReply
+            {
+                Message = $"Hello {request.Name} #{i + 1}"
+            });
+            await Task.Delay(1000);
+        }
+    }
+}
+
+// Program.cs
+builder.Services.AddGrpc();
+app.MapGrpcService<GreeterService>();
+```
+
+---
+
+**Client Usage**
+
+```csharp
+var channel = GrpcChannel.ForAddress("https://localhost:5001");
+var client = new Greeter.GreeterClient(channel);
+
+var reply = await client.SayHelloAsync(new HelloRequest { Name = "World" });
+Console.WriteLine(reply.Message); // "Hello World"
+```
+
+---
+
+**When to Use gRPC vs REST**
+
+| Criteria                | gRPC                          | REST                           |
+| ----------------------- | ----------------------------- | ------------------------------ |
+| Performance             | High (binary, HTTP/2)         | Lower (text-based JSON)       |
+| Browser support         | Limited (requires gRPC-Web)   | Native                         |
+| Human-readable          | No (binary protobuf)          | Yes (JSON)                     |
+| Streaming               | Built-in                      | Requires SSE or WebSockets     |
+| Tooling                 | Needs protobuf tooling        | Widely supported               |
+| Service-to-service      | Excellent                     | Good                           |
+
+---
+
+**When NOT to Use gRPC**
+
+* **Browser clients** — browsers cannot use HTTP/2 trailers natively; requires gRPC-Web proxy
+* **Human-readable APIs** — debugging binary protobuf is harder than JSON
+* **Public-facing APIs** — REST/JSON is more universally understood by consumers
+* **Simple CRUD** — the overhead of `.proto` files may not be worth it
+
+---
+
+✅ Use gRPC for high-performance, internal service-to-service communication. Stick with REST for public APIs and browser-facing endpoints.
+
+---
+
+---
+
+## Service Registration & Startup
+
+### Q: What Is the Difference Between AddMvc, AddControllers, AddControllersWithViews, and AddRazorPages?
+
+**A:**
+
+**Overview**
+
+ASP.NET Core provides several `Add*` extension methods to register MVC-related services. Each one registers a **different subset** of the MVC framework depending on your application type.
+
+---
+
+**Comparison**
+
+| Method                      | Controllers | Views (Razor) | Razor Pages | Tag Helpers | API Explorer |
+| --------------------------- | :---------: | :-----------: | :---------: | :---------: | :----------: |
+| `AddControllers()`          | ✅          | ❌            | ❌          | ❌          | ✅           |
+| `AddControllersWithViews()` | ✅          | ✅            | ❌          | ✅          | ✅           |
+| `AddRazorPages()`           | ❌          | ❌            | ✅          | ✅          | ❌           |
+| `AddMvc()`                  | ✅          | ✅            | ✅          | ✅          | ✅           |
+
+---
+
+**When to Use Each**
+
+```csharp
+// API-only application (no views, no pages)
+builder.Services.AddControllers();
+
+// MVC application with controllers and Razor views
+builder.Services.AddControllersWithViews();
+
+// Razor Pages application (page-based model)
+builder.Services.AddRazorPages();
+
+// Full MVC + Razor Pages (everything)
+builder.Services.AddMvc();
+```
+
+---
+
+**Endpoint Mapping**
+
+Each registration method has a corresponding `Map*` call:
+
+```csharp
+// For AddControllers
+app.MapControllers();
+
+// For AddControllersWithViews
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// For AddRazorPages
+app.MapRazorPages();
+
+// For AddMvc — map both
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+app.MapRazorPages();
+```
+
+---
+
+**Summary**
+
+| Scenario              | Recommended Method             |
+| --------------------- | ------------------------------ |
+| Web API               | `AddControllers()`             |
+| MVC with views        | `AddControllersWithViews()`    |
+| Razor Pages app       | `AddRazorPages()`              |
+| Mixed (API + Pages)   | `AddMvc()`                     |
+
+---
+
+✅ Choose the most specific method for your app type. Using `AddControllers()` for an API project avoids loading unnecessary view compilation services, improving startup time.
+
+---
+
+---
+
+### Q: What Are Tag Helpers in ASP.NET Core?
+
+**A:**
+
+**What Are Tag Helpers?**
+
+Tag Helpers are **server-side components** that enable Razor views to render HTML using an **HTML-like syntax** rather than C# code blocks. They attach to standard HTML elements and execute server-side logic during view rendering.
+
+---
+
+**Tag Helpers vs HTML Helpers**
+
+| Feature          | Tag Helpers                        | HTML Helpers                       |
+| ---------------- | ---------------------------------- | ---------------------------------- |
+| Syntax           | HTML-like (`<a asp-action="...">`) | C# method calls (`@Html.ActionLink(...)`) |
+| IntelliSense     | Full HTML IntelliSense             | Limited                            |
+| Readability      | Natural HTML feel                  | Mixed C# and HTML                  |
+| Designer-friendly | Yes — looks like standard HTML    | No — requires C# knowledge        |
+
+---
+
+**Built-in Tag Helpers**
+
+```html
+<!-- Anchor Tag Helper -->
+<a asp-controller="Products" asp-action="Details" asp-route-id="5">View Product</a>
+<!-- Renders: <a href="/Products/Details/5">View Product</a> -->
+
+<!-- Form Tag Helper -->
+<form asp-controller="Account" asp-action="Login" method="post">
+    <!-- Input Tag Helpers -->
+    <label asp-for="Email"></label>
+    <input asp-for="Email" />
+    <span asp-validation-for="Email"></span>
+
+    <label asp-for="Password"></label>
+    <input asp-for="Password" />
+    <span asp-validation-for="Password"></span>
+
+    <button type="submit">Log In</button>
+</form>
+
+<!-- Environment Tag Helper -->
+<environment include="Development">
+    <link rel="stylesheet" href="~/css/site.css" />
+</environment>
+<environment exclude="Development">
+    <link rel="stylesheet" href="~/css/site.min.css" asp-append-version="true" />
+</environment>
+
+<!-- Image Tag Helper (cache busting) -->
+<img src="~/images/logo.png" asp-append-version="true" />
+```
+
+---
+
+**Common Built-in Tag Helpers**
+
+| Tag Helper         | Element      | Purpose                                  |
+| ------------------ | ------------ | ---------------------------------------- |
+| Anchor             | `<a>`        | Generate links to actions/pages          |
+| Form               | `<form>`     | Generate form action URLs with anti-forgery |
+| Input              | `<input>`    | Bind to model properties                 |
+| Label              | `<label>`    | Generate labels from `[Display]` attributes |
+| Validation         | `<span>`     | Display validation messages              |
+| Select             | `<select>`   | Render dropdown from model data          |
+| Environment        | `<environment>` | Conditional rendering by environment  |
+| Cache              | `<cache>`    | Cache rendered HTML fragments            |
+| Image              | `<img>`      | Cache-busting with `asp-append-version`  |
+
+---
+
+**Creating a Custom Tag Helper**
+
+```csharp
+[HtmlTargetElement("alert")]
+public class AlertTagHelper : TagHelper
+{
+    public string Type { get; set; } = "info";
+    public string Message { get; set; } = string.Empty;
+
+    public override void Process(TagHelperContext context, TagHelperOutput output)
+    {
+        output.TagName = "div";
+        output.Attributes.SetAttribute("class", $"alert alert-{Type}");
+        output.Attributes.SetAttribute("role", "alert");
+        output.Content.SetContent(Message);
+    }
+}
+```
+
+Usage in Razor:
+
+```html
+@addTagHelper *, MyApp
+
+<alert type="warning" message="This is a warning!" />
+<!-- Renders: <div class="alert alert-warning" role="alert">This is a warning!</div> -->
+```
+
+---
+
+**Registering Tag Helpers**
+
+Add to `_ViewImports.cshtml`:
+
+```html
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@addTagHelper *, MyApp
+```
+
+---
+
+✅ Use Tag Helpers for cleaner Razor views that feel like natural HTML. Prefer them over HTML Helpers in new projects for better readability and tooling support.
 
 ---
 
