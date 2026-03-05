@@ -50,7 +50,7 @@ InterviewBit's ASP.NET section covers a broad range of questions spanning classi
 
 **URL:** <https://github.com/kumarvna/interview-questions>
 
-A repository of interview questions on various .NET-related topics by Vinitpatel Kumar. The repository was not publicly accessible at time of import; linked here for reference.
+A repository of interview questions on various .NET-related topics (GitHub user: kumarvna). The repository was not publicly accessible at time of import; linked here for reference.
 
 ---
 
