@@ -2159,7 +2159,7 @@ var lengths = words.Select(w => w.Length);
 
 ### 🔹 `SelectMany()`
 
-**Flattens** collections — 1\:N projection.
+**Flattens** collections — 1:N projection.
 
 ```csharp
 var allChars = words.SelectMany(w => w.ToCharArray());
