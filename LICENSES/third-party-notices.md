@@ -10,7 +10,7 @@ This repository contains content imported, adapted, or referenced from the follo
 |-------|---------|
 | **Repository** | <https://github.com/aam9063/dotnet-interview-questions> |
 | **Author** | Albert Alarcón Martínez |
-| **Files imported** | `csharp/questions.md`, `dotnet-fundamentals/questions.md` |
+| **Files imported** | `dotnet/csharp/questions.md`, `dotnet/dotnet-fundamentals/questions.md`, `dotnet/aspnet-core/questions.md` |
 | **License** | No explicit `LICENSE` file found in the repository. The README states: *"This repository is shared publicly for learning and professional growth. You're welcome to fork, clone, or star this project. Attribution is appreciated."* Content has been imported in good faith with full attribution. |
 | **Attribution** | All imported content from this source is credited to Albert Alarcón Martínez. See individual question files for inline source attribution. |
 
